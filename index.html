@@ -16,10 +16,30 @@
     </div>
 
     <script>
-        const ETH_NODE_URL = 'https://eth.llamarpc.com';
+        const RPC_ENDPOINTS = [
+            'https://1rpc.io/eth',
+            'https://eth.llamarpc.com',
+            'https://rpc.payload.de/',
+            'https://rpc.flashbots.net/',
+            'https://rpc.ankr.com/eth',
+            'https://eth-mainnet.public.blastapi.io',
+            'https://api.securerpc.com/v1',
+            'https://ethereum.publicnode.com',
+            'https://eth.merkle.io',
+            'https://eth.drpc.org',
+            'https://public.stackup.sh/api/v1/node/ethereum-mainnet'
+        ];
+        
         let lastBlock = null;
+        let currentRpcIndex = 0;
+
+        function getNextRpcUrl() {
+            currentRpcIndex = (currentRpcIndex + 1) % RPC_ENDPOINTS.length;
+            return RPC_ENDPOINTS[currentRpcIndex];
+        }
 
         async function fetchLatestBlock() {
+            const ETH_NODE_URL = getNextRpcUrl();
             try {
                 const response = await fetch(ETH_NODE_URL, {
                     method: 'POST',
@@ -48,6 +68,7 @@
         }
 
         async function fetchBlockDetails(blockNumber) {
+            const ETH_NODE_URL = getNextRpcUrl();
             try {
                 const response = await fetch(ETH_NODE_URL, {
                     method: 'POST',
@@ -73,7 +94,7 @@
 
         function displayTransactions(transactions) {
             const transactionsList = document.getElementById('transactions-list');
-            transactionsList.innerHTML = '';
+            transactionsList.innerHTML = ''; 
 
             transactions.forEach(tx => {
                 const listItem = document.createElement('li');
@@ -82,7 +103,7 @@
             });
         }
 
-        setInterval(fetchLatestBlock, 10000); // 10 seconds = 10000
+        setInterval(fetchLatestBlock, 1000); // 1000 = 1 second
     </script>
 </body>
 </html>
