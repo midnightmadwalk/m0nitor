@@ -14,29 +14,13 @@
         <h2>Transactions</h2>
         <ul id="transactions-list"></ul>
     </div>
-    <!-- Add the on/off slider -->
-    <div id="listener-control">
-        <label for="listener-toggle">Listener:</label>
-        <input type="checkbox" id="listener-toggle" checked>
-    </div>
 
     <script>
         const RPC_ENDPOINTS = [
-            'https://mainnet.base.org',
-            'https://base.blockpi.network/v1/rpc/public',
-            'https://public.stackup.sh/api/v1/node/base-mainnet',
-            'https://base-rpc.publicnode.com',
-            'https://base.drpc.org',
-            'https://1rpc.io/base',
-            'https://base.meowrpc.com',
-            'https://base.rpc.subquery.network/public',
-            'https://gateway.tenderly.co/public/base',
-            'https://base.gateway.tenderly.co',
-            'https://developer-access-mainnet.base.org',
-            'https://endpoints.omniatech.io/v1/base/mainnet/public'
+            ''
         ];
-        
-        let lastProcessedBlock = -1;
+
+        let lastProcessedBlock = 17492400 ;
         let currentRpcIndex = 0;
         let pollingInterval;
         let processingBlock = false;
@@ -47,7 +31,6 @@
         }
 
         async function fetchLatestBlock() {
-            if (processingBlock) return; // Skip fetching if still processing
             const NODE_URL = getNextRpcUrl();
             try {
                 const response = await fetch(NODE_URL, {
@@ -64,18 +47,10 @@
                 });
 
                 const data = await response.json();
-                const latestBlock = parseInt(data.result, 16);
-
-                if (latestBlock > lastProcessedBlock) {
-                    processingBlock = true;
-                    lastProcessedBlock = latestBlock;
-                    document.getElementById('block-container').innerText = `Latest Block: ${latestBlock}`;
-                    await fetchBlockDetails(`0x${latestBlock.toString(16)}`);
-                    processingBlock = false;
-                }
+                return parseInt(data.result, 16);
             } catch (error) {
                 console.error('Error fetching latest block:', error);
-                processingBlock = false;
+                return null;
             }
         }
 
@@ -90,17 +65,16 @@
                     body: JSON.stringify({
                         jsonrpc: "2.0",
                         method: "eth_getBlockByNumber",
-                        params: [blockNumber, true], // 'true' to get full transaction objects
+                        params: [blockNumber, true],
                         id: 1
                     })
                 });
 
                 const data = await response.json();
-                const block = data.result;
-                const transactions = block.transactions;
-                await displayTransactions(transactions, block.number);
+                return data.result;
             } catch (error) {
                 console.error('Error fetching block details:', error);
+                return null;
             }
         }
 
@@ -130,6 +104,28 @@
             }
         }
 
+        async function fetchContractDetails(contractAddress) {
+            const API_URI = `https://pulseapi.solodragonsden.cloud/basechain/tokenInfo/${contractAddress}`;
+            try {
+                const response = await fetch(API_URI, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching contract details:', error);
+                return null;
+            }
+        }
+
         async function displayTransactions(transactions, blockNumber) {
             const transactionsList = document.getElementById('transactions-list');
             const transactionHashes = transactions.map(tx => tx.hash);
@@ -139,32 +135,54 @@
             for (let i = 0; i < transactions.length; i++) {
                 const tx = transactions[i];
                 const receipt = receipts[i];
-                const listItem = document.createElement('li');
-                listItem.textContent = `Block: ${parseInt(blockNumber, 16)}, Tx Hash: ${tx.hash}`;
-                transactionsList.appendChild(listItem);
 
-                if (receipt && receipt.contractAddress !== null) {
-                    const receiptItem = document.createElement('pre'); // Use <pre> for displaying raw JSON
-                    receiptItem.textContent = JSON.stringify(receipt, null, 2); // Stringify the receipt with formatting
-                    listItem.appendChild(receiptItem);
+                if (receipt.contractAddress !== null) {
+                    // Fetch contract details
+                    const contractDetails = await fetchContractDetails(receipt.contractAddress);
+
+                    if (contractDetails !== null) {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = `Block: ${parseInt(blockNumber, 16)}, Tx Hash: ${tx.hash}`;
+
+                        const receiptDetails = document.createElement('pre');
+                        receiptDetails.textContent = JSON.stringify({
+                            contractAddress: receipt.contractAddress,
+                            from: receipt.from,
+                            contractDetails: contractDetails
+                        }, null, 2);
+                        listItem.appendChild(receiptDetails);
+
+                        transactionsList.appendChild(listItem);
+                    }
                 }
             }
         }
 
-        function toggleListener() {
-            const listenerToggle = document.getElementById('listener-toggle');
-            if (listenerToggle.checked) {
-                pollingInterval = setInterval(fetchLatestBlock, 1000);
-            } else {
-                clearInterval(pollingInterval);
+        async function processNewBlocks() {
+            if (processingBlock) return;
+            processingBlock = true;
+
+            try {
+                const latestBlock = await fetchLatestBlock();
+                if (latestBlock !== null && latestBlock > lastProcessedBlock) {
+                    for (let blockNumber = lastProcessedBlock + 1; blockNumber <= latestBlock; blockNumber++) {
+                        const blockDetails = await fetchBlockDetails(`0x${blockNumber.toString(16)}`);
+                        if (blockDetails) {
+                            document.getElementById('block-container').innerText = `Latest Block: ${blockNumber}`;
+                            await displayTransactions(blockDetails.transactions, blockDetails.number);
+                        }
+                        lastProcessedBlock = blockNumber;
+                    }
+                }
+            } catch (error) {
+                console.error('Error processing new blocks:', error);
             }
+
+            processingBlock = false;
         }
 
-        // Start polling initially
-        toggleListener();
-
-        // Attach event listener to toggle button
-        document.getElementById('listener-toggle').addEventListener('change', toggleListener);
+        // Start the listener automatically
+        pollingInterval = setInterval(processNewBlocks, 10);
     </script>
 </body>
 </html>
