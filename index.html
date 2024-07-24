@@ -17,10 +17,10 @@
 
     <script>
         const RPC_ENDPOINTS = [
-            ''
+            'https://api.speedynodes.net/http/base-http?apikey=06cb7a66549ead8a307ce026685e5243',
         ];
 
-        let lastProcessedBlock = 17492400 ;
+        let lastProcessedBlock = 1100;
         let currentRpcIndex = 0;
         let pollingInterval;
         let processingBlock = false;
@@ -136,7 +136,7 @@
                 const tx = transactions[i];
                 const receipt = receipts[i];
 
-                if (receipt.contractAddress !== null) {
+                if (receipt && receipt.contractAddress !== null) {
                     // Fetch contract details
                     const contractDetails = await fetchContractDetails(receipt.contractAddress);
 
@@ -182,7 +182,7 @@
         }
 
         // Start the listener automatically
-        pollingInterval = setInterval(processNewBlocks, 10);
+        pollingInterval = setInterval(processNewBlocks, 4);
     </script>
 </body>
 </html>
